@@ -22,6 +22,64 @@ def deploy_cluster():
     
     return jsonify({'containers': [c.short_id for c in containers]}), 200
 
+@app.route('/scale_cluster', methods=['POST'])
+def scale_cluster():
+    """
+    Route to scale a cluster by adjusting the number of instances.
+    """
+    data = request.json
+    cluster_name = data.get('cluster_name')
+    new_num_instances = data.get('new_num_instances')
+    image_name = data.get('image_name')
+    command = data.get('command', None)
+
+    updated_containers, err = docker.scale_cluster(cluster_name, new_num_instances, image_name, command)
+    if err:
+        return jsonify({'error': err}), 500
+
+    return jsonify({'name': cluster_name, 'updated_containers': [c.short_id for c in updated_containers]}), 200
+
+@app.route('/delete_cluster', methods=['DELETE'])
+def delete_cluster():
+    """
+    Route to delete a cluster and its containers.
+    """
+    data = request.json
+    cluster_name = data.get('cluster_name')
+    
+    success, err = docker.delete_cluster(cluster_name)
+    if err:
+        return jsonify({'error': err}), 500
+    
+    return jsonify({'status': 'Cluster deleted successfully' if success else 'Error deleting cluster'}), 200
+
+@app.route('/restart_cluster', methods=['POST'])
+def restart_cluster():
+    """
+    Route to restart all containers in a cluster.
+    """
+    data = request.json
+    cluster_name = data.get('cluster_name')
+    
+    success, err = docker.restart_cluster(cluster_name)
+    if err:
+        return jsonify({'error': err}), 500
+    
+    return jsonify({'status': 'Cluster restarted successfully' if success else 'Error restarting cluster'}), 200
+
+@app.route('/cluster_status_overview', methods=['GET'])
+def cluster_status_overview():
+    """
+    Route to get an overview of the status of a cluster.
+    """
+    cluster_name = request.args.get('cluster_name')
+    
+    status, err = docker.cluster_status_overview(cluster_name)
+    if err:
+        return jsonify({'error': err}), 500
+    
+    return jsonify(status), 200
+
 @app.route('/list_clusters', methods=['GET'])
 def list_clusters():
     """
@@ -33,9 +91,59 @@ def list_clusters():
     
     return jsonify({'clusters': cluster_names}), 200
 
+# ------------------ Node Management Routes ------------------
+
+@app.route('/stop_node', methods=['POST'])
+def stop_node():
+    """
+    Route to stop a specific container (node).
+    """
+    data = request.json
+    container_name = data.get('container_name')
+
+    if not container_name:
+        return {"error": "container_name is required."}, 400
+
+    result, err = docker.stop_node(container_name)
+    if err:
+        return {"error": err}, 500
+    
+    return result, 200
+
+@app.route('/remove_node_from_cluster', methods=['DELETE'])
+def remove_node_from_cluster():
+    """
+    Route to remove a specific container (node) from the cluster.
+    """
+    data = request.json
+    container_name = data.get('container_name')
+    
+    success, err = docker.remove_node_from_cluster(container_name)
+    if err:
+        return jsonify({'error': err}), 500
+    
+    return jsonify({'status': 'Node removed successfully' if success else 'Error removing node'}), 200
+
+@app.route('/list_nodes_in_cluster', methods=['GET'])
+def list_nodes_in_cluster():
+    """
+    Route to list all containers (nodes) in a specified cluster.
+    """
+    cluster_name = request.args.get('cluster_name')
+    
+    containers, err = docker.list_containers_in_cluster(cluster_name)
+    if err:
+        return jsonify({'error': err}), 500
+    
+    return jsonify({'containers': containers}), 200
+
+# ------------------ State Management Routes ------------------
 
 @app.route('/save_cluster_state', methods=['POST'])
 def save_cluster_state():
+    """
+    Route to save the current state of a cluster by committing each container to a new image.
+    """
     data = request.json
     cluster_name = data.get('cluster_name')
     
@@ -45,9 +153,11 @@ def save_cluster_state():
     
     return jsonify({'name': cluster_name, 'saved_images': saved_images}), 200
 
-
 @app.route('/restore_cluster_state', methods=['POST'])
 def restore_cluster_state():
+    """
+    Route to restore a cluster's state from saved images.
+    """
     data = request.json
     cluster_name = data.get('cluster_name')
     images = data.get('images')
@@ -56,27 +166,13 @@ def restore_cluster_state():
     if err:
         return jsonify({'error': err}), 500
     
-    return jsonify({'name': cluster_name,'restored_containers': [c.short_id for c in containers]}), 200
-
-@app.route('/scale_cluster', methods=['POST'])
-def scale_cluster():
-    data = request.json
-    cluster_name = data.get('cluster_name')
-    new_num_instances = data.get('new_num_instances')
-    image_name = data.get('image_name')
-    command = data.get('command', None)
-
-    # Ensure new_num_instances is properly passed to the SDK function
-    updated_containers, err = docker.scale_cluster(cluster_name, new_num_instances, image_name, command)
-
-    if err:
-        return jsonify({'error': err}), 500
-
-    return jsonify({'name': cluster_name, 'updated_containers': [c.short_id for c in updated_containers]}), 200
-
+    return jsonify({'name': cluster_name, 'restored_containers': [c.short_id for c in containers]}), 200
 
 @app.route('/rollback_cluster', methods=['POST'])
 def rollback_cluster():
+    """
+    Route to roll back a cluster to a previous state using saved images.
+    """
     data = request.json
     cluster_name = data.get('cluster_name')
     previous_state_images = data.get('previous_state_images')
@@ -87,77 +183,5 @@ def rollback_cluster():
     
     return jsonify({'rolled_back_containers': [c.short_id for c in containers]}), 200
 
-
-@app.route('/delete_cluster', methods=['DELETE'])
-def delete_cluster():
-    data = request.json
-    cluster_name = data.get('cluster_name')
-    
-    success, err = docker.delete_cluster(cluster_name)
-    if err:
-        return jsonify({'error': err}), 500
-    
-    return jsonify({'status': 'Cluster deleted successfully' if success else 'Error deleting cluster'}), 200
-
-
-@app.route('/remove_node_from_cluster', methods=['DELETE'])
-def remove_node_from_cluster():
-    data = request.json
-    container_name = data.get('container_name')
-    
-    success, err = docker.remove_node_from_cluster(container_name)
-    if err:
-        return jsonify({'error': err}), 500
-    
-    return jsonify({'status': 'Node removed successfully' if success else 'Error removing node'}), 200
-
-
-@app.route('/restart_cluster', methods=['POST'])
-def restart_cluster():
-    data = request.json
-    cluster_name = data.get('cluster_name')
-    
-    success, err = docker.restart_cluster(cluster_name)
-    if err:
-        return jsonify({'error': err}), 500
-    
-    return jsonify({'status': 'Cluster restarted successfully' if success else 'Error restarting cluster'}), 200
-
-
-@app.route('/cluster_status_overview', methods=['GET'])
-def cluster_status_overview():
-    cluster_name = request.args.get('cluster_name')
-    
-    status, err = docker.cluster_status_overview(cluster_name)
-    if err:
-        return jsonify({'error': err}), 500
-    
-    return jsonify(status), 200
-
-
-@app.route('/list_nodes_in_cluster', methods=['GET'])
-def list_nodes_in_cluster():
-    cluster_name = request.args.get('cluster_name')
-    
-    containers, err = docker.list_containers_in_cluster(cluster_name)
-    if err:
-        return jsonify({'error': err}), 500
-    
-    return jsonify({'containers': containers}), 200
-
-@app.route('/stop_node', methods=['POST'])
-def stop_node():
-    data = request.get_json()
-    container_name = data.get('container_name')
-
-    if not container_name:
-        return {"error": "container_name is required."}, 400
-
-    result, err = docker.stop_node(container_name)
-    if err:
-        return {"error": err}, 500
-    return result, 200
-
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-
