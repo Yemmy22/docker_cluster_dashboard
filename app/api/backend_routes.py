@@ -1,11 +1,12 @@
-from flask import Flask, jsonify, request
-import docker_sdk as docker
+from flask import Blueprint, jsonify, request
+import api.docker_sdk as docker
 
-app = Flask(__name__)
+# Create a blueprint for backend routes
+backend = Blueprint('backend', __name__)
 
 # ------------------ Cluster Management Routes ------------------
 
-@app.route('/deploy_cluster', methods=['POST'])
+@backend.route('/deploy_cluster', methods=['POST'])
 def deploy_cluster():
     """
     Route to deploy a cluster with the specified image, name, and number of instances.
@@ -22,7 +23,7 @@ def deploy_cluster():
     
     return jsonify({'containers': [c.short_id for c in containers]}), 200
 
-@app.route('/scale_cluster', methods=['POST'])
+@backend.route('/scale_cluster', methods=['POST'])
 def scale_cluster():
     """
     Route to scale a cluster by adjusting the number of instances.
@@ -39,7 +40,7 @@ def scale_cluster():
 
     return jsonify({'name': cluster_name, 'updated_containers': [c.short_id for c in updated_containers]}), 200
 
-@app.route('/delete_cluster', methods=['DELETE'])
+@backend.route('/delete_cluster', methods=['DELETE'])
 def delete_cluster():
     """
     Route to delete a cluster and its containers.
@@ -53,7 +54,7 @@ def delete_cluster():
     
     return jsonify({'status': 'Cluster deleted successfully' if success else 'Error deleting cluster'}), 200
 
-@app.route('/restart_cluster', methods=['POST'])
+@backend.route('/restart_cluster', methods=['POST'])
 def restart_cluster():
     """
     Route to restart all containers in a cluster.
@@ -67,7 +68,7 @@ def restart_cluster():
     
     return jsonify({'status': 'Cluster restarted successfully' if success else 'Error restarting cluster'}), 200
 
-@app.route('/cluster_status_overview', methods=['GET'])
+@backend.route('/cluster_status_overview', methods=['GET'])
 def cluster_status_overview():
     """
     Route to get an overview of the status of a cluster.
@@ -80,7 +81,7 @@ def cluster_status_overview():
     
     return jsonify(status), 200
 
-@app.route('/list_clusters', methods=['GET'])
+@backend.route('/list_clusters', methods=['GET'])
 def list_clusters():
     """
     Route to list all available cluster names.
@@ -93,7 +94,7 @@ def list_clusters():
 
 # ------------------ Node Management Routes ------------------
 
-@app.route('/stop_node', methods=['POST'])
+@backend.route('/stop_node', methods=['POST'])
 def stop_node():
     """
     Route to stop a specific container (node).
@@ -110,7 +111,7 @@ def stop_node():
     
     return result, 200
 
-@app.route('/remove_node_from_cluster', methods=['DELETE'])
+@backend.route('/remove_node_from_cluster', methods=['DELETE'])
 def remove_node_from_cluster():
     """
     Route to remove a specific container (node) from the cluster.
@@ -124,7 +125,7 @@ def remove_node_from_cluster():
     
     return jsonify({'status': 'Node removed successfully' if success else 'Error removing node'}), 200
 
-@app.route('/list_nodes_in_cluster', methods=['GET'])
+@backend.route('/list_nodes_in_cluster', methods=['GET'])
 def list_nodes_in_cluster():
     """
     Route to list all containers (nodes) in a specified cluster.
@@ -139,7 +140,7 @@ def list_nodes_in_cluster():
 
 # ------------------ State Management Routes ------------------
 
-@app.route('/save_cluster_state', methods=['POST'])
+@backend.route('/save_cluster_state', methods=['POST'])
 def save_cluster_state():
     """
     Route to save the current state of a cluster by committing each container to a new image.
@@ -153,7 +154,7 @@ def save_cluster_state():
     
     return jsonify({'name': cluster_name, 'saved_images': saved_images}), 200
 
-@app.route('/restore_cluster_state', methods=['POST'])
+@backend.route('/restore_cluster_state', methods=['POST'])
 def restore_cluster_state():
     """
     Route to restore a cluster's state from saved images.
@@ -168,7 +169,7 @@ def restore_cluster_state():
     
     return jsonify({'name': cluster_name, 'restored_containers': [c.short_id for c in containers]}), 200
 
-@app.route('/rollback_cluster', methods=['POST'])
+@backend.route('/rollback_cluster', methods=['POST'])
 def rollback_cluster():
     """
     Route to roll back a cluster to a previous state using saved images.
@@ -183,5 +184,3 @@ def rollback_cluster():
     
     return jsonify({'rolled_back_containers': [c.short_id for c in containers]}), 200
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
